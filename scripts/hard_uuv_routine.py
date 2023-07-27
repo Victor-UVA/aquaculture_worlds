@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import rospy
 from std_msgs.msg import String
@@ -13,7 +13,7 @@ if __name__ == '__main__':
     else:
         print(filename)
     with open(filename, 'r') as wp_file:
-        wps = yaml.load(wp_file)
+        wps = yaml.load(wp_file, Loader=yaml.FullLoader)
     
     message = InitWaypointsFromFileRequest()
     message.start_now = True

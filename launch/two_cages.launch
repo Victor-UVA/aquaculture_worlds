@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<launch>
+<arg name="debug" default="0"/>
+
+  <arg name="namespace" default="rexrov"/>
+  <arg name="use_ned_frame" default="true"/>
+
+    <arg name="gui" default="true"/>
+    <arg name="paused" default="false"/>
+    <arg name="set_timeout" default="false"/>
+    <arg name="timeout" default="0.0"/>
+    <arg name="verbose" default="true"/>
+    
+    <!-- USV config -->
+    <arg name="usv_urdf" default="$(find wamv_gazebo)/urdf/wamv_gazebo.urdf.xacro"/>
+    <arg name="usv_locked" default="false" />
+    <arg name="usv_thrust_config" default="H" />
+    <arg name="vrx_sensors_enabled" default="true" />
+    <arg name="usv_namespace" default="wamv"/>
+    <arg name="usv_x" default="35" />
+    <arg name="usv_y" default="35" />
+    <arg name="usv_z" default="0.1" />
+    <arg name="usv_P" default="0" />
+    <arg name="usv_R" default="0" />
+    <arg name="usv_Y" default="3.9" />
+    
+    <!-- UUV config -->
+    <arg name="uuv_teleop_on" default="false" doc="If true, the teleop node will be started"/>
+    <arg name="joy_id" default="0" doc="Joystick ID"/>
+    <arg name="uuv_x" default="32"/> <!-- 32 -->
+    <arg name="uuv_y" default="32"/> <!-- 32 -->
+    <arg name="uuv_z" default="-20"/>
+    <arg name="uuv_yaw" default="3.7"/>
+    <arg name="uuv_name" default="rexrov"/>
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="worlds/two_cage_simple.world"/>
+        <arg name="paused" value="$(arg paused)"/>
+        <arg name="use_sim_time" value="true"/>
+        <arg name="gui" value="$(arg gui)"/>
+        <arg name="headless" value="false"/>
+        <arg name="debug" value="false"/>
+        <arg name="verbose" value="$(arg verbose)"/>
+    </include>
+
+    <include file="$(find uuv_assistants)/launch/publish_world_ned_frame.launch"/>
+    
+    <node name="publish_world_models"
+        pkg="uuv_assistants"
+        type="publish_world_models.py"
+        output="screen">
+        <rosparam subst_value="true">
+            meshes:
+                heightmap:
+                    mesh: package://uuv_gazebo_worlds/models/sand_heightmap/meshes/heightmap.dae
+                    model: sand_heightmap
+                seafloor:
+                    plane: [2000, 2000, 0.1]
+                    pose:
+                        position: [0, 0, -100]
+                north:
+                    plane: [0.1, 2000, 100]
+                    pose:
+                        position: [1000, 0, -50]
+                south:
+                    plane: [0.1, 2000, 100]
+                    pose:
+                        position: [-1000, 0, -50]
+                west:
+                    plane: [2000, 0.1, 100]
+                    pose:
+                        position: [0, -1000, -50]
+                east:
+                    plane: [2000, 0.1, 100]
+                    pose:
+                        position: [0, 1000, -50]
+        </rosparam>
+    </node>
+    
+              
+    <include file="$(find rexrov2_description)/launch/upload_rexrov2.launch">
+        <arg name="x" value="$(arg uuv_x)"/>
+        <arg name="y" value="$(arg uuv_y)"/>
+        <arg name="z" value="$(arg uuv_z)"/>
+        <arg name="yaw" value="$(arg uuv_yaw)"/>
+        <arg name="use_ned_frame" value="false"/>
+    </include>
+
+    <include file="$(find rexrov2_control)/launch/start_pid_controller.launch">
+        <arg name="teleop_on" value="true"/>
+        <arg name="joy_id" value="$(arg joy_id)"/>
+        <arg name="use_ned_frame" value="false"/>
+    </include>
+    
+    <param name="$(arg usv_namespace)/robot_description"
+         command="$(find xacro)/xacro '$(arg usv_urdf)'
+         locked:=$(arg usv_locked)		   
+         thruster_config:=$(arg usv_thrust_config)
+         vrx_sensors_enabled:=$(arg vrx_sensors_enabled)
+         namespace:=$(arg usv_namespace) "/>
+         
+    <node name="spawn_usv_model" pkg="gazebo_ros" type="spawn_model"
+        args="-x $(arg usv_x) -y $(arg usv_y) -z $(arg usv_z)
+              -R $(arg usv_R) -P $(arg usv_P) -Y $(arg usv_Y)
+              -urdf -param $(arg usv_namespace)/robot_description -model wamv"/>
+
+    <group if="$(arg set_timeout)">
+        <include file="$(find uuv_assistants)/launch/set_simulation_timer.launch">
+            <arg name="timeout" value="$(arg timeout)"/>
+        </include>
+    </group>
+
+    <node pkg="tf" type="static_transform_publisher" name="imu_broadcaster" args="0 0 0 0 0 0 1 world wamv/odom 100" /> <!-- formerly world_ned -->
+    <arg name="rviz_config" default="$(find wamv_gazebo)/config/rviz_vrx.rviz" />
+    <!-- <node pkg="rviz" type="rviz" name="wamv_visualization" args="-d $(arg rviz_config)" /> -->
+    <include file="$(find wamv_gazebo)/launch/localization_example.launch" />
+    <include file="$(find wamv_gazebo)/launch/rviz_vrx.launch" />
+</launch>
+
